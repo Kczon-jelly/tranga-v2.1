@@ -1,6 +1,5 @@
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Web;
 using HtmlAgilityPack;
 using API.MangaDownloadClients;
 using API.Schema.MangaContext;
@@ -22,11 +21,15 @@ public class ReLibrary : MangaConnector
     public override (Manga, MangaConnectorId<Manga>)[] SearchManga(string mangaSearchName)
     {
         Log.InfoFormat("Searching: {0}", mangaSearchName);
-        string requestUrl = $"https://re-library.com/?s={HttpUtility.UrlEncode(mangaSearchName)}";
-        HttpResponseMessage response = downloadClient.MakeRequest(requestUrl, RequestType.Default).GetAwaiter().GetResult();
+        // re-library.com's native ?s= search endpoint doesn't actually filter results (it just
+        // returns the homepage regardless of query) - so instead we fetch the single directory page
+        // that lists every series at once, and filter by title match ourselves before fetching
+        // anything else. This also means far fewer requests than checking every listed series.
+        string directoryUrl = "https://re-library.com/translations/";
+        HttpResponseMessage response = downloadClient.MakeRequest(directoryUrl, RequestType.Default).GetAwaiter().GetResult();
         if (!response.IsSuccessStatusCode)
         {
-            Log.Error("Search request failed");
+            Log.Error("Failed to load series directory page");
             return [];
         }
 
@@ -34,28 +37,35 @@ public class ReLibrary : MangaConnector
         HtmlDocument doc = new();
         doc.LoadHtml(html);
 
-        // WordPress search results: links to /translations/{slug}/ (series pages).
-        // Individual chapter posts also match /translations/{slug}/volume-x/chapter-y/ - we only want the series root.
-        HtmlNodeCollection? nodes = doc.DocumentNode.SelectNodes("//a[contains(@href,'/translations/')]");
+        // Each series entry is a heading (h3/h4/h5, theme-dependent) wrapping a link to /translations/{slug}/
+        HtmlNodeCollection? nodes = doc.DocumentNode.SelectNodes(
+            "//h3/a[contains(@href,'/translations/')] | //h4/a[contains(@href,'/translations/')] | //h5/a[contains(@href,'/translations/')]");
         if (nodes is null)
         {
-            Log.Info("No results found");
+            Log.Info("No series found in directory page - site markup may have changed");
             return [];
         }
 
         Regex seriesUrlRex = new(@"^https?://re-library\.com/translations/([a-z0-9-]+)/?$");
         HashSet<string> seenSlugs = new();
-        List<(Manga, MangaConnectorId<Manga>)> results = new();
+        List<(string slug, string title)> matches = new();
         foreach (HtmlNode node in nodes)
         {
             string href = node.GetAttributeValue("href", "").Trim();
             Match m = seriesUrlRex.Match(href);
-            if (!m.Success)
-                continue;
-            string slug = m.Groups[1].Value;
-            if (slug == "most-popular" || !seenSlugs.Add(slug))
+            if (!m.Success || !seenSlugs.Add(m.Groups[1].Value))
                 continue;
 
+            string title = HtmlEntity.DeEntitize(node.InnerText.Trim());
+            if (title.Contains(mangaSearchName, StringComparison.OrdinalIgnoreCase))
+                matches.Add((m.Groups[1].Value, title));
+        }
+
+        // Only fetch full details for titles that actually matched - keeps request volume low
+        // and avoids getting rate-limited/blocked for unrelated searches.
+        List<(Manga, MangaConnectorId<Manga>)> results = new();
+        foreach ((string slug, string _) in matches)
+        {
             if (GetMangaFromId(slug) is { } manga)
                 results.Add(manga);
         }

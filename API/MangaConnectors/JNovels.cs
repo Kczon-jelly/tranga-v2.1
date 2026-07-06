@@ -30,7 +30,7 @@ public class JNovels : MangaConnector
     // jnovels has no per-series index page - every post is "{Title} Volume N {Pdf|Epub}".
     // We use the WordPress search endpoint and group same-title posts into one series.
     private static readonly Regex VolumeSuffixRex = new(
-        @"\s+Volume\s+(?<vol>\d+)\s+(?<fmt>Pdf|Epub)\s*$", RegexOptions.IgnoreCase);
+        @"\s+volume\s+(?<vol>\d+)\s+(?:Light\s+Novel\s+)?(?<fmt>Pdf|Epub)\s*$", RegexOptions.IgnoreCase);
     // Some posts (rarer) use "Light Novel Pdf/Epub" without a volume number (single-volume or omnibus)
     private static readonly Regex NoVolumeSuffixRex = new(
         @"\s+Light\s+Novel\s+(?<fmt>Pdf|Epub)\s*$", RegexOptions.IgnoreCase);
