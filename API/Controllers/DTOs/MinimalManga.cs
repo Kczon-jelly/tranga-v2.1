@@ -7,7 +7,7 @@ namespace API.Controllers.DTOs;
 /// <summary>
 /// Shortened Version of <see cref="Manga"/>
 /// </summary>
-public record MinimalManga(string Key, string Name, string Description, MangaReleaseStatus ReleaseStatus, IEnumerable<MangaConnectorId<Manga>> MangaConnectorIds) : Identifiable(Key)
+public record MinimalManga(string Key, string Name, string Description, MangaReleaseStatus ReleaseStatus, IEnumerable<MangaConnectorId<Manga>> MangaConnectorIds, MediaType MediaType = MediaType.Manga) : Identifiable(Key)
 {
     /// <summary>
     /// Name of the Manga
@@ -36,4 +36,11 @@ public record MinimalManga(string Key, string Name, string Description, MangaRel
     [Required]
     [Description("Ids of the Manga on MangaConnectors")]
     public IEnumerable<MangaConnectorId<Manga>> MangaConnectorIds { get; init; } = MangaConnectorIds;
+
+    /// <summary>
+    /// Whether this is a Manga, Light Novel, or Web Novel
+    /// </summary>
+    [Required]
+    [Description("Whether this is a Manga, Light Novel, or Web Novel")]
+    public MediaType MediaType { get; init; } = MediaType;
 }

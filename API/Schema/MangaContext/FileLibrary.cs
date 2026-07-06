@@ -11,5 +11,11 @@ public class FileLibrary(string basePath, string libraryName)
 
     [StringLength(512)] public string LibraryName { get; internal set; } = libraryName;
 
+    /// <summary>
+    /// If set, newly-added Manga of this MediaType will automatically be assigned to this Library.
+    /// Only one FileLibrary per MediaType should have this set; if multiple do, the first match is used.
+    /// </summary>
+    public MediaType? DefaultForMediaType { get; internal set; } = null;
+
     public override string ToString() => $"{base.ToString()} {LibraryName} - {BasePath}";
 }

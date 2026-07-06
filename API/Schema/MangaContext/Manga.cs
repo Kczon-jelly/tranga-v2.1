@@ -27,6 +27,7 @@ public class Manga : Identifiable
     [StringLength(512)] public string? CoverFileNameInCache { get; internal set; }
     public uint? Year { get; internal init; }
     [StringLength(8)] public string? OriginalLanguage { get; internal init; }
+    public MediaType MediaType { get; internal set; } = MediaType.Manga;
     
     
     /// <exception cref="DirectoryNotFoundException">Library not loaded</exception>
@@ -48,7 +49,8 @@ public class Manga : Identifiable
 
     public Manga(string name, string description, string coverUrl, MangaReleaseStatus releaseStatus,
         ICollection<Author> authors, ICollection<MangaTag> mangaTags, ICollection<Link> links, ICollection<AltTitle> altTitles,
-        FileLibrary? library = null, float ignoreChaptersBefore = 0f, uint? year = null, string? originalLanguage = null)
+        FileLibrary? library = null, float ignoreChaptersBefore = 0f, uint? year = null, string? originalLanguage = null,
+        MediaType mediaType = MediaType.Manga)
     :base(TokenGen.CreateToken(typeof(Manga), name))
     {
         this.Name = name;
@@ -64,6 +66,7 @@ public class Manga : Identifiable
         this.DirectoryName = name.CleanNameForWindows();
         this.Year = year;
         this.OriginalLanguage = originalLanguage;
+        this.MediaType = mediaType;
         this.Chapters = [];
         this.MangaConnectorIds = [];
     }
@@ -73,7 +76,8 @@ public class Manga : Identifiable
     /// </summary>
     public Manga(string key, string name, string description, string coverUrl,
         MangaReleaseStatus releaseStatus,
-        string directoryName, float ignoreChaptersBefore, string? libraryId, uint? year, string? originalLanguage)
+        string directoryName, float ignoreChaptersBefore, string? libraryId, uint? year, string? originalLanguage,
+        MediaType mediaType = MediaType.Manga)
         : base(key)
     {
         this.Name = name;
@@ -85,6 +89,7 @@ public class Manga : Identifiable
         this.IgnoreChaptersBefore = ignoreChaptersBefore;
         this.Year = year;
         this.OriginalLanguage = originalLanguage;
+        this.MediaType = mediaType;
     }
     
     /// <exception cref="DirectoryNotFoundException">Library not loaded</exception>
@@ -150,4 +155,11 @@ public enum MangaReleaseStatus
     OnHiatus,
     Cancelled,
     Unreleased
+}
+
+public enum MediaType
+{
+    Manga,
+    LightNovel,
+    WebNovel
 }

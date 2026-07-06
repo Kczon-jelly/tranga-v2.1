@@ -45,7 +45,7 @@ public class SearchController(MangaContext context) : ControllerBase
         {
             IEnumerable<DTOs.MangaConnectorId<DTOs.Manga>> ids = m.MangaConnectorIds.Select(id =>
                 new DTOs.MangaConnectorId<DTOs.Manga>(id.Key, id.MangaConnectorName, id.ObjId, id.WebsiteUrl, id.UseForDownload));
-            return new MinimalManga(m.Key, m.Name, m.Description, m.ReleaseStatus, ids);
+            return new MinimalManga(m.Key, m.Name, m.Description, m.ReleaseStatus, ids, m.MediaType);
         });
 
         return TypedResults.Ok(result.ToList());
@@ -76,7 +76,7 @@ public class SearchController(MangaContext context) : ControllerBase
         
         IEnumerable<DTOs.MangaConnectorId<DTOs.Manga>> ids = added.manga.MangaConnectorIds.Select(id =>
             new DTOs.MangaConnectorId<DTOs.Manga>(id.Key, id.MangaConnectorName, id.ObjId, id.WebsiteUrl, id.UseForDownload));
-        MinimalManga result = new (added.manga.Key, added.manga.Name, added.manga.Description, added.manga.ReleaseStatus, ids);
+        MinimalManga result = new (added.manga.Key, added.manga.Name, added.manga.Description, added.manga.ReleaseStatus, ids, added.manga.MediaType);
 
         return TypedResults.Ok(result);
     }

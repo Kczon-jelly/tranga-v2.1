@@ -78,12 +78,28 @@ public class DownloadChapterFromMangaconnectorWorker(MangaConnectorId<Chapter> c
             return [];
         }
         
-        Log.Info($"Getting imageUrls for chapter {chapter}");
-        string[] imageUrls = mangaConnector.GetChapterImageUrls(mangaConnectorId);
-        if (imageUrls.Length < 1)
+        Log.Info($"Getting content for chapter {chapter}");
+        bool isNovel = chapter.ParentManga.MediaType is MediaType.LightNovel or MediaType.WebNovel;
+
+        string? chapterText = null;
+        string[] imageUrls = [];
+        if (isNovel)
         {
-            Log.Info($"No imageUrls for chapter {chapter}");
-            return [];
+            chapterText = mangaConnector.GetChapterText(mangaConnectorId);
+            if (string.IsNullOrWhiteSpace(chapterText))
+            {
+                Log.Info($"No chapter text for chapter {chapter}");
+                return [];
+            }
+        }
+        else
+        {
+            imageUrls = mangaConnector.GetChapterImageUrls(mangaConnectorId);
+            if (imageUrls.Length < 1)
+            {
+                Log.Info($"No imageUrls for chapter {chapter}");
+                return [];
+            }
         }
 
         if (chapter.FullArchiveFilePath is not { } saveArchiveFilePath)
@@ -107,26 +123,29 @@ public class DownloadChapterFromMangaconnectorWorker(MangaConnectorId<Chapter> c
             Directory.CreateDirectory(directoryPath);
         }
 
-        Log.Info($"Downloading images: {chapter}");
         List<Stream> images = [];
-        //Download all Images to temporary Folder
-        foreach (string imageUrl in imageUrls)
+        if (!isNovel)
         {
-            try
+            Log.Info($"Downloading images: {chapter}");
+            //Download all Images to temporary Folder
+            foreach (string imageUrl in imageUrls)
             {
-                if (await mangaConnector.DownloadImage(imageUrl, CancellationToken) is not { } stream)
+                try
                 {
-                    Log.Error($"Failed to download image: {imageUrl}");
+                    if (await mangaConnector.DownloadImage(imageUrl, CancellationToken) is not { } stream)
+                    {
+                        Log.Error($"Failed to download image: {imageUrl}");
+                        return [];
+                    }
+                    else
+                        images.Add(await ProcessImage(stream, CancellationToken));
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex);
+                    images.ForEach(i => i.Dispose());
                     return [];
                 }
-                else
-                    images.Add(await ProcessImage(stream, CancellationToken));
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex);
-                images.ForEach(i => i.Dispose());
-                return [];
             }
         }
         
@@ -142,41 +161,61 @@ public class DownloadChapterFromMangaconnectorWorker(MangaConnectorId<Chapter> c
             File.Delete(saveArchiveFilePath);
         }
 
-        //Create cbz archive
-        try
+        if (isNovel)
         {
-            Log.Debug($"Creating archive: {saveArchiveFilePath}");
-            //ZIP-it and ship-it
-            using ZipArchive archive = ZipFile.Open(saveArchiveFilePath, ZipArchiveMode.Create);
+            try
+            {
+                Log.Debug($"Creating epub: {saveArchiveFilePath}");
+                string chapterTitle = chapter.Title is { } t && t.Length > 0
+                    ? $"Chapter {chapter.ChapterNumber} - {t}"
+                    : $"Chapter {chapter.ChapterNumber}";
+                string? authorName = chapter.ParentManga.Authors?.FirstOrDefault()?.AuthorName;
+                EpubBuilder.CreateSingleChapterEpub(saveArchiveFilePath, chapter.ParentManga.Name, chapterTitle, authorName, chapterText!);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex);
+                return [];
+            }
+        }
+        else
+        {
+            //Create cbz archive
+            try
+            {
+                Log.Debug($"Creating archive: {saveArchiveFilePath}");
+                //ZIP-it and ship-it
+                using ZipArchive archive = ZipFile.Open(saveArchiveFilePath, ZipArchiveMode.Create);
 
-            if (Constants.CreateComicInfoXml)
-            {
-                Log.Debug("Writing ComicInfo.xml");
-                Stream comicStream = archive.CreateEntry("ComicInfo.xml").Open();
-                string comicInfo = chapter.GetComicInfoXmlString();
-                await comicStream.WriteAsync(Encoding.UTF8.GetBytes(comicInfo), CancellationToken);
-                await comicStream.DisposeAsync();
+                if (Constants.CreateComicInfoXml)
+                {
+                    Log.Debug("Writing ComicInfo.xml");
+                    Stream comicStream = archive.CreateEntry("ComicInfo.xml").Open();
+                    string comicInfo = chapter.GetComicInfoXmlString();
+                    await comicStream.WriteAsync(Encoding.UTF8.GetBytes(comicInfo), CancellationToken);
+                    await comicStream.DisposeAsync();
+                }
+                else
+                    Log.Debug("Skipping ComicInfo.xml. CREATE_COMICINFO_XML is set to false");
+                
+                for (int i = 0; i < images.Count; i++)
+                {
+                    Log.Debug($"Packaging images to archive {chapter} , image {i}");
+                    Stream zipStream = archive.CreateEntry($"{i}.jpg").Open();
+                    Stream imageStream = images[i];
+                    imageStream.Position = 0;
+                    await imageStream.CopyToAsync(zipStream, CancellationToken);
+                    await zipStream.DisposeAsync();
+                }
             }
-            else
-                Log.Debug("Skipping ComicInfo.xml. CREATE_COMICINFO_XML is set to false");
-            
-            for (int i = 0; i < images.Count; i++)
+            catch (Exception ex)
             {
-                Log.Debug($"Packaging images to archive {chapter} , image {i}");
-                Stream zipStream = archive.CreateEntry($"{i}.jpg").Open();
-                Stream imageStream = images[i];
-                imageStream.Position = 0;
-                await imageStream.CopyToAsync(zipStream, CancellationToken);
-                await zipStream.DisposeAsync();
+                Log.Error(ex);
             }
-        }
-        catch (Exception ex)
-        {
-            Log.Error(ex);
-        }
-        finally
-        {
-            images.ForEach(i => i.Dispose());
+            finally
+            {
+                images.ForEach(i => i.Dispose());
+            }
         }
 
         chapter.Downloaded = true;

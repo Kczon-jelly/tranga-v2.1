@@ -254,7 +254,14 @@ public static class Tranga
                 return inDb ?? ma;
             });
             addManga.Authors = mergedAuthors.ToList();
-            
+
+            if (addManga.Library is null &&
+                context.FileLibraries.FirstOrDefault(l => l.DefaultForMediaType == addManga.MediaType) is { } defaultLibrary)
+            {
+                addManga.Library = defaultLibrary;
+                Log.DebugFormat("Auto-assigned Manga {0} ({1}) to default Library {2}", addManga.Name, addManga.MediaType, defaultLibrary.LibraryName);
+            }
+
             context.Mangas.Add(addManga);
             result = (addManga, addMcId);
         }

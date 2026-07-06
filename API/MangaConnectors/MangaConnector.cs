@@ -11,7 +11,7 @@ using SixLabors.ImageSharp.Processing;
 namespace API.MangaConnectors;
 
 [PrimaryKey("Name")]
-public abstract class MangaConnector(string name, string[] supportedLanguages, string[] baseUris, string iconUrl)
+public abstract class MangaConnector(string name, string[] supportedLanguages, string[] baseUris, string iconUrl, MediaType mediaType = MediaType.Manga)
 {
     [NotMapped] internal IDownloadClient downloadClient { get; init; } = null!;
     [NotMapped] protected ILog Log { get; init; } = LogManager.GetLogger(name);
@@ -20,6 +20,11 @@ public abstract class MangaConnector(string name, string[] supportedLanguages, s
     [StringLength(2048)] public string IconUrl { get; init; } = iconUrl;
     [StringLength(256)] public string[] BaseUris { get; init; } = baseUris;
     public bool Enabled { get; internal set; } = true;
+    /// <summary>
+    /// The type of content this Connector serves (Manga, LightNovel, WebNovel).
+    /// New Manga created by this Connector are automatically stamped with this MediaType.
+    /// </summary>
+    public MediaType MediaType { get; init; } = mediaType;
     
     public abstract (Manga, MangaConnectorId<Manga>)[] SearchManga(string mangaSearchName);
 
@@ -31,6 +36,14 @@ public abstract class MangaConnector(string name, string[] supportedLanguages, s
         string? language = null);
 
     internal abstract string[] GetChapterImageUrls(MangaConnectorId<Chapter> chapterId);
+
+    /// <summary>
+    /// For text-based content (LightNovel/WebNovel Connectors): returns the chapter content as an XHTML body fragment
+    /// (e.g. a series of &lt;p&gt; tags, with &lt;img&gt; tags for any inline illustrations/CGs).
+    /// Manga Connectors don't need to override this - it defaults to null, which tells the download worker
+    /// to fall back to the image-based (cbz) path via <see cref="GetChapterImageUrls"/>.
+    /// </summary>
+    internal virtual string? GetChapterText(MangaConnectorId<Chapter> chapterId) => null;
 
     public bool UrlMatchesConnector(string url) => BaseUris.Any(baseUri => Regex.IsMatch(url, "https?://" + baseUri + "/.*"));
     

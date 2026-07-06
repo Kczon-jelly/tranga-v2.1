@@ -29,7 +29,7 @@ public class FileLibraryController(MangaContext context) : ControllerBase
         if (await context.FileLibraries.ToListAsync(HttpContext.RequestAborted) is not { } result)
             return TypedResults.InternalServerError();
 
-        List<FileLibrary> fileLibraries = result.Select(f => new FileLibrary(f.Key, f.BasePath, f.LibraryName)).ToList();
+        List<FileLibrary> fileLibraries = result.Select(f => new FileLibrary(f.Key, f.BasePath, f.LibraryName, f.DefaultForMediaType)).ToList();
 
         return TypedResults.Ok(fileLibraries);
     }
@@ -48,7 +48,7 @@ public class FileLibraryController(MangaContext context) : ControllerBase
         if(await context.FileLibraries.FirstOrDefaultAsync(l => l.Key == FileLibraryId, HttpContext.RequestAborted) is not { } library)
             return TypedResults.NotFound(nameof(FileLibraryId));
         
-        return TypedResults.Ok(new FileLibrary(library.Key, library.BasePath, library.LibraryName));
+        return TypedResults.Ok(new FileLibrary(library.Key, library.BasePath, library.LibraryName, library.DefaultForMediaType));
     }
 
     /// <summary>
@@ -72,6 +72,10 @@ public class FileLibraryController(MangaContext context) : ControllerBase
             library.BasePath = path;
         if(requestData.Name is { } name)
             library.LibraryName = name;
+        if (requestData.ClearDefaultForMediaType)
+            library.DefaultForMediaType = null;
+        else if (requestData.DefaultForMediaType.HasValue)
+            library.DefaultForMediaType = requestData.DefaultForMediaType;
         
         if(await context.Sync(HttpContext.RequestAborted, GetType(), System.Reflection.MethodBase.GetCurrentMethod()?.Name) is { success: false } result)
             return TypedResults.InternalServerError(result.exceptionMessage);
@@ -88,6 +92,14 @@ public class FileLibraryController(MangaContext context) : ControllerBase
         /// Library Name
         /// </summary>
         public required string? Name { get; init; } = Name;
+        /// <summary>
+        /// If set, marks (or re-marks) this Library as the default destination for this MediaType
+        /// </summary>
+        public API.Schema.MangaContext.MediaType? DefaultForMediaType { get; init; } = null;
+        /// <summary>
+        /// Set true (with DefaultForMediaType left null) to clear this Library's default-media-type assignment
+        /// </summary>
+        public bool ClearDefaultForMediaType { get; init; } = false;
     }
     
     /// <summary>
@@ -102,7 +114,10 @@ public class FileLibraryController(MangaContext context) : ControllerBase
     public async Task<Results<Created<string>, InternalServerError<string>>> CreateNewLibrary ([FromBody]CreateLibraryRecord requestData)
     {
         //TODO Parameter check
-        Schema.MangaContext.FileLibrary library = new (requestData.BasePath, requestData.LibraryName);
+        Schema.MangaContext.FileLibrary library = new (requestData.BasePath, requestData.LibraryName)
+        {
+            DefaultForMediaType = requestData.DefaultForMediaType
+        };
         context.FileLibraries.Add(library);
         
         if(await context.Sync(HttpContext.RequestAborted, GetType(), System.Reflection.MethodBase.GetCurrentMethod()?.Name) is { success: false } result)

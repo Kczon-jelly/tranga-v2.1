@@ -338,7 +338,7 @@ public class MangaController(MangaContext context, ActionsContext actionsContext
             IEnumerable<string> tags = m.MangaTags.Select(t => t.Tag);
             IEnumerable<Link> links = m.Links.Select(l => new Link(l.Key, l.LinkProvider, l.LinkUrl));
             IEnumerable<AltTitle> altTitles = m.AltTitles.Select(a => new AltTitle(a.Language, a.Title));
-            return new Manga(m.Key, m.Name, m.Description, m.ReleaseStatus, ids, m.IgnoreChaptersBefore, m.Year, m.OriginalLanguage, authors, tags, links, altTitles, m.LibraryId);
+            return new Manga(m.Key, m.Name, m.Description, m.ReleaseStatus, ids, m.IgnoreChaptersBefore, m.Year, m.OriginalLanguage, authors, tags, links, altTitles, m.LibraryId, m.MediaType);
         }).ToList());
     }
     

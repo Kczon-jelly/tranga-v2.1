@@ -200,7 +200,7 @@ public class Chapter : Identifiable, IComparable<Chapter>
             stringBuilder.Append(value);
         }
 
-        stringBuilder.Append(".cbz");
+        stringBuilder.Append(ParentManga?.MediaType is MediaType.LightNovel or MediaType.WebNovel ? ".epub" : ".cbz");
 
         return stringBuilder.ToString().CleanNameForWindows();
     }
