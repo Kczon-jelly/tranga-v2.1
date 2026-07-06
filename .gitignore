@@ -22,7 +22,7 @@ riderModule.iml
 Tranga/Properties/launchSettings.json
 *.DotSettings.user
 
-Manga/
+/Manga/
 debug/
 cover.jpg
 cover.png
