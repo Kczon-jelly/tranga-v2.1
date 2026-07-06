@@ -4009,6 +4009,9 @@
             "minLength": 1,
             "type": "string",
             "description": "The Name of the library"
+          },
+          "defaultForMediaType": {
+            "$ref": "#/components/schemas/MediaType"
           }
         },
         "additionalProperties": false
@@ -4143,6 +4146,9 @@
             "type": "string",
             "description": "The Name of the library"
           },
+          "defaultForMediaType": {
+            "$ref": "#/components/schemas/MediaType"
+          },
           "key": {
             "maxLength": 64,
             "minLength": 16,
@@ -4232,6 +4238,7 @@
           "key",
           "links",
           "mangaConnectorIds",
+          "mediaType",
           "name",
           "releaseStatus",
           "tags"
@@ -4306,6 +4313,9 @@
               "$ref": "#/components/schemas/MangaMangaConnectorId"
             },
             "description": "Ids of the Manga on MangaConnectors"
+          },
+          "mediaType": {
+            "$ref": "#/components/schemas/MediaType"
           },
           "key": {
             "maxLength": 64,
@@ -4403,6 +4413,14 @@
         ],
         "type": "string"
       },
+      "MediaType": {
+        "enum": [
+          "Manga",
+          "LightNovel",
+          "WebNovel"
+        ],
+        "type": "string"
+      },
       "MetadataEntry": {
         "type": "object",
         "properties": {
@@ -4464,6 +4482,7 @@
           "description",
           "key",
           "mangaConnectorIds",
+          "mediaType",
           "name",
           "releaseStatus"
         ],
@@ -4488,6 +4507,9 @@
               "$ref": "#/components/schemas/MangaMangaConnectorId"
             },
             "description": "Ids of the Manga on MangaConnectors"
+          },
+          "mediaType": {
+            "$ref": "#/components/schemas/MediaType"
           },
           "key": {
             "maxLength": 64,
@@ -4563,6 +4585,13 @@
             "type": "string",
             "description": "Library Name",
             "nullable": true
+          },
+          "defaultForMediaType": {
+            "$ref": "#/components/schemas/MediaType"
+          },
+          "clearDefaultForMediaType": {
+            "type": "boolean",
+            "description": "Set true (with DefaultForMediaType left null) to clear this Library's default-media-type assignment"
           }
         },
         "additionalProperties": false
