@@ -159,57 +159,76 @@ public class JNovels : MangaConnector
 
     private List<JNovelsPost> SearchPosts(string query)
     {
-        string requestUrl = $"https://jnovels.com/?s={HttpUtility.UrlEncode(query)}";
-        HttpResponseMessage response = downloadClient.MakeRequest(requestUrl, RequestType.Default).GetAwaiter().GetResult();
-        if (!response.IsSuccessStatusCode)
+        List<JNovelsPost> allPosts = new();
+        const int maxPages = 5; // jnovels.com has thousands of posts; stop after this many pages of search results
+        for (int page = 1; page <= maxPages; page++)
         {
-            Log.Error("Search request failed");
-            return [];
-        }
+            string requestUrl = page == 1
+                ? $"https://jnovels.com/?s={HttpUtility.UrlEncode(query)}"
+                : $"https://jnovels.com/page/{page}/?s={HttpUtility.UrlEncode(query)}";
 
-        string html = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
-        HtmlDocument doc = new();
-        doc.LoadHtml(html);
-
-        // Each search result is an <article>/post block with an <h1>/<h2> title link and a cover <img>
-        HtmlNodeCollection? titleNodes = doc.DocumentNode.SelectNodes("//h1/a[contains(@href,'jnovels.com/')] | //h2/a[contains(@href,'jnovels.com/')]");
-        if (titleNodes is null)
-            return [];
-
-        List<JNovelsPost> posts = new();
-        foreach (HtmlNode titleNode in titleNodes)
-        {
-            string postUrl = titleNode.GetAttributeValue("href", "").Trim();
-            string postTitle = HtmlEntity.DeEntitize(titleNode.InnerText.Trim());
-
-            Match volMatch = VolumeSuffixRex.Match(postTitle);
-            string seriesTitle;
-            int? volumeNumber;
-            string format;
-            if (volMatch.Success)
+            HttpResponseMessage response = downloadClient.MakeRequest(requestUrl, RequestType.Default).GetAwaiter().GetResult();
+            if (!response.IsSuccessStatusCode)
             {
-                seriesTitle = postTitle[..volMatch.Index].Trim();
-                volumeNumber = int.Parse(volMatch.Groups["vol"].Value);
-                format = volMatch.Groups["fmt"].Value;
-            }
-            else
-            {
-                Match noVolMatch = NoVolumeSuffixRex.Match(postTitle);
-                if (!noVolMatch.Success)
-                    continue; // not a recognizable "{Title} Volume N Pdf/Epub" post - skip (e.g. manga/WN posts use a different naming scheme)
-                seriesTitle = postTitle[..noVolMatch.Index].Trim();
-                volumeNumber = null;
-                format = noVolMatch.Groups["fmt"].Value;
+                if (page == 1)
+                    Log.Error("Search request failed");
+                break; // ran off the end of available pages, or a real failure - either way, stop paginating
             }
 
-            // Cover image: nearest <img> that appears right after this title link in the same post block
-            HtmlNode? imgNode = titleNode.SelectSingleNode("../../..//img[1]") ?? titleNode.SelectSingleNode("../..//img[1]");
-            string coverUrl = imgNode?.GetAttributeValue("src", "") ?? "";
+            string html = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+            HtmlDocument doc = new();
+            doc.LoadHtml(html);
 
-            posts.Add(new JNovelsPost(seriesTitle, volumeNumber, format, postUrl, coverUrl));
+            HtmlNodeCollection? titleNodes = doc.DocumentNode.SelectNodes("//h1/a[contains(@href,'jnovels.com/')] | //h2/a[contains(@href,'jnovels.com/')]");
+            if (titleNodes is null || titleNodes.Count == 0)
+                break; // no more results - past the last page
+
+            int postsFoundThisPage = 0;
+            foreach (HtmlNode titleNode in titleNodes)
+            {
+                string postUrl = titleNode.GetAttributeValue("href", "").Trim();
+                string postTitle = HtmlEntity.DeEntitize(titleNode.InnerText.Trim());
+
+                Match volMatch = VolumeSuffixRex.Match(postTitle);
+                string seriesTitle;
+                int? volumeNumber;
+                string format;
+                if (volMatch.Success)
+                {
+                    seriesTitle = postTitle[..volMatch.Index].Trim();
+                    volumeNumber = int.Parse(volMatch.Groups["vol"].Value);
+                    format = volMatch.Groups["fmt"].Value;
+                }
+                else
+                {
+                    Match noVolMatch = NoVolumeSuffixRex.Match(postTitle);
+                    if (!noVolMatch.Success)
+                        continue; // not a recognizable "{Title} Volume N Pdf/Epub" post - skip (e.g. manga/WN posts use a different naming scheme)
+                    seriesTitle = postTitle[..noVolMatch.Index].Trim();
+                    volumeNumber = null;
+                    format = noVolMatch.Groups["fmt"].Value;
+                }
+
+                // Only keep posts whose series title is actually relevant to the query - jnovels' search
+                // returns plenty of tangentially-related posts (tag pages, tangential mentions, etc.)
+                if (!seriesTitle.Contains(query, StringComparison.OrdinalIgnoreCase) &&
+                    !query.Contains(seriesTitle, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                HtmlNode? imgNode = titleNode.SelectSingleNode("../../..//img[1]") ?? titleNode.SelectSingleNode("../..//img[1]");
+                string coverUrl = imgNode?.GetAttributeValue("src", "") ?? "";
+
+                allPosts.Add(new JNovelsPost(seriesTitle, volumeNumber, format, postUrl, coverUrl));
+                postsFoundThisPage++;
+            }
+
+            // If nothing on this page matched our relevance filter, later pages are even less likely to -
+            // WP search results are roughly relevance/date ordered, so stop early instead of scanning all 5.
+            if (postsFoundThisPage == 0 && page > 1)
+                break;
         }
 
-        return posts;
+        return allPosts;
     }
 
     private static string StripVolumeSuffix(string postTitle)
